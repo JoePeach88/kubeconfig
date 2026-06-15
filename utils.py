@@ -1,10 +1,10 @@
 import os
 import subprocess
-import platform
 import signal
 import time
 import psutil
-from helpers import print_message, ERROR
+from env import SYSTEM_PLATFORM
+from helpers import print_message, ERROR, SUCCESS
 
 
 current_parent = 0
@@ -53,22 +53,21 @@ def restart_parent_terminal_process(deep: int = 2):
 def set_env_variable(name, value):
     os.environ[name] = value
 
-    system = platform.system()
 
-    if system == 'Windows':
+    if SYSTEM_PLATFORM == 'Windows':
         subprocess.call(
             ['setx', name, value],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-        print_message(f"Variable successfully set.", force=True)
+        print_message(f"Variable successfully set.", SUCCESS, force=True)
         process_restarted = restart_parent_terminal_process(deep=0)
         if process_restarted:
-            print_message('Parent process successfully restarted.', force=True)
+            print_message('Parent process successfully restarted.', SUCCESS, force=True)
         
 
-    elif system in ('Linux', 'Darwin'):
+    elif SYSTEM_PLATFORM in ('Linux', 'Darwin'):
         shell_profile = os.path.expanduser('~/.bashrc')
         with open(shell_profile, 'a', encoding='utf-8') as f:
             f.write(f'\nexport {name}="{value}"\n')
-        print_message(f"Added to '{shell_profile}'. Run 'source {shell_profile}' to apply.", force=True)
+        print_message(f"Added to '{shell_profile}'. Run 'source {shell_profile}' to apply.", SUCCESS, force=True)

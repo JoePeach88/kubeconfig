@@ -3,7 +3,7 @@ import os
 import glob
 import yaml
 from pathlib import Path
-from helpers import print_message, print_choices, ERROR
+from helpers import print_message, print_choices, ERROR, SUCCESS
 from helpers.kubeconfig.utils import set_env_variable
 
 
@@ -11,8 +11,12 @@ from helpers.kubeconfig.utils import set_env_variable
 __module_disabled_methods__ = []
 __module_name__ = 'KubeConfigHelper'
 __module_author__ = 'JoePeach88'
-__module_version__ = '1.1.0'
+__module_version__ = '1.1.1'
 __module_link__ = 'https://github.com/JoePeach88/kubeconfig'
+__module_category__ = ['development', 'devops', 'k8s']
+__module_compatibility__ = ['all']
+__module_dependencies__ = [{}]
+__module_status__ = 'stable'
 __methods_static_aliases__ = {
     'ls': ['ll', 'list'],
     'store': ['save'],
@@ -25,10 +29,10 @@ __methods_static_aliases__ = {
 
 class kubeconfigHelper:
     """
-    kubeconfigHelper - module to work with kubeconfigs.
+    Module to work with kubeconfigs.
     """
     def __init__(self, settings: dict):
-        self.settings = settings
+        self.settings = settings.get('kubeconfig')
 
     def store(self, kubeconfig: str, dest: str = None, use: bool = False):
         """
@@ -42,13 +46,13 @@ class kubeconfigHelper:
                 kubeconfig store --kubeconfig /path/to/kubeconfig --use
         """
         try:
-            dest_path = Path(self.settings.get('kubeconfigs_location', ''))
+            dest_path = Path(self.settings.get('kubeconfigs_locations', ''))
             if not dest_path:
                 dest_path = Path.home() / '.kube'
             dest_path = Path(dest) if dest else dest_path
             dest_path = Path(dest_path / Path(kubeconfig).name)
             shutil.copy2(kubeconfig, dest_path)
-            print_message(f"kubeconfig '{kubeconfig}' copied to '{dest_path}' successfully.")
+            print_message(f"kubeconfig '{kubeconfig}' copied to '{dest_path}' successfully.", SUCCESS)
             if use:
                 self.use(str(dest_path))
         except FileNotFoundError:
@@ -87,13 +91,15 @@ class kubeconfigHelper:
                 if str(default_config) not in kubeconfig_list:
                     kubeconfig_list.append(str(default_config))
 
-        if 'kubeconfigs_location' in locations or 'all' in locations:
+        if 'kubeconfigs_locations' in locations or 'all' in locations:
             # Check settings location
-            if self.settings:
-                kubeconfigs_location = self.settings.get('kubeconfigs_location')
-                kubeconfigs = glob.glob(os.path.join(Path(kubeconfigs_location), "*.yaml"))
+            if self.settings and self.settings.get('kubeconfigs_locations'):
+                kubeconfigs_locations = self.settings.get('kubeconfigs_locations')
+                kubeconfigs = set()
+                for kubeconfigs_location in kubeconfigs_locations.split(','):
+                    kubeconfigs.update(glob.glob(os.path.join(Path(kubeconfigs_location), "*.yaml")))
                 if kubeconfigs:
-                    print_message(f"Found kubeconfigs in settings kubeconfigs location: '{str(kubeconfigs_location)}'.")
+                    print_message(f"Found kubeconfigs in settings kubeconfigs locations: '{str(kubeconfigs_locations)}'.")
                     for kubeconfig in kubeconfigs:
                         if kubeconfig not in kubeconfig_list:
                             kubeconfig_list.append(kubeconfig)
@@ -123,7 +129,7 @@ class kubeconfigHelper:
                 if not kubeconfig:
                     kubeconfigs.remove(kubeconfig)
             set_env_variable('KUBECONFIG', separator.join(kubeconfigs))
-            print_message(f"KUBECONFIG variable successfully set to '{separator.join(kubeconfigs)}'")
+            print_message(f"KUBECONFIG variable successfully set to '{separator.join(kubeconfigs)}'", SUCCESS)
 
     def rm(self, kubeconfig: str = None, location: str = 'env', force: str = False):
         """
@@ -143,7 +149,7 @@ class kubeconfigHelper:
         if kubeconfig:
             if force:
                 os.unlink(kubeconfig)
-                print_message(f"kubeconfig file '{kubeconfig}' deleted.")
+                print_message(f"kubeconfig file '{kubeconfig}' deleted.", SUCCESS)
             separator = ';' if os.name == 'nt' else ':'
             current_kubeconfig = os.environ.get('KUBECONFIG', '').split(separator)
             if kubeconfig in current_kubeconfig:
@@ -153,24 +159,28 @@ class kubeconfigHelper:
                     if not kubeconfig:
                         kubeconfigs.remove(kubeconfig)
                 set_env_variable('KUBECONFIG', separator.join(kubeconfigs))
-                print_message(f"KUBECONFIG variable successfully set to '{separator.join(kubeconfigs)}'")
+                print_message(f"KUBECONFIG variable successfully set to '{separator.join(kubeconfigs)}'", SUCCESS)
             else:
                 print_message(f"kubeconfig '{kubeconfig}' not found in KUBECONFIG variable.", force=True)
 
-    def validate(self, kubeconfig: str, return_value: bool = False):
+    def validate(self, kubeconfig: str = None, location: str = 'env', return_value: bool = False):
         """
         Method validates kubeconfig.
         Usage:
             kubeconfig validate --kubeconfig /path/to/kubeconfig
         """
-        try:
-            with open(kubeconfig, 'r', encoding='utf-8') as stream:
-                data = yaml.safe_load(stream)
-                if return_value:
-                    return yaml.dump(data)
-            return f"kubeconfig '{kubeconfig}' is valid."
-        except yaml.YAMLError:
-            return f"kubeconfig '{kubeconfig}' is invalid."
+        if not kubeconfig:
+            kubeconfig_list = self.ls(pretty=False, location=location)
+            kubeconfig = print_choices(kubeconfig_list, exit_btn=True)
+        if kubeconfig:
+            try:
+                with open(kubeconfig, 'r', encoding='utf-8') as stream:
+                    data = yaml.safe_load(stream)
+                    if return_value:
+                        return yaml.dump(data)
+                return f"kubeconfig '{kubeconfig}' is valid."
+            except yaml.YAMLError:
+                return f"kubeconfig '{kubeconfig}' is invalid."
 
     def show(self, *args, kubeconfig: str = None):
         """
