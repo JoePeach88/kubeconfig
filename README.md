@@ -1,6 +1,6 @@
 # kubeconfig
 
-Module to work with kubeconfigs.
+**Module to work with kubeconfigs.**
 
 ## Methods list
 
@@ -21,7 +21,7 @@ helper modules install kubeconfig --location https://github.com/JoePeach88/kubec
 
 **Author: [JoePeach88](https://github.com/JoePeach88)**
 
-**Version: 1.1.1**
+**Version: 1.2.0**
 
 **Supported platforms:**
 
@@ -33,17 +33,17 @@ all
 
 ### ls
 
+**Method displays all available kubeconfigs from all known kubeconfigs locations.**
 ```
-Method displays all available kubeconfigs from all known kubeconfigs locations.
 Usage:
 kubeconfig ls
 ```
 
 ### rm
 
+**Method removes kubeconfig from env variable KUBECONFIG.**
+>NOTE: This command restarts all parent process to refresh env variables (Windows only).
 ```
-Method removes kubeconfig from env variable KUBECONFIG.
-NOTE: This command restarts all parent process to refresh env variables (Windows only).
 Usage:
 1. With prompt to select available kubeconfigs.
 kubeconfig rm
@@ -55,8 +55,8 @@ kubeconfig rm --force
 
 ### show
 
+**Method displays kubeconfig content.**
 ```
-Method displays kubeconfig content.
 Usage:
 1. With prompt to select available kubeconfigs.
 kubeconfig show
@@ -68,8 +68,8 @@ kubeconfig show --kubeconfig /path/to/kubeconfig clusters users
 
 ### store
 
+**Method stores kubeconfig to specified location `dest` or to default kubeconfigs location from config file.**
 ```
-Method stores kubeconfig to specified location `dest` or to default kubeconfigs location from config file.
 Usage:
 1. Without specified location (to default kubeconfigs location):
 kubeconfig store --kubeconfig /path/to/kubeconfig
@@ -81,9 +81,9 @@ kubeconfig store --kubeconfig /path/to/kubeconfig --use
 
 ### use
 
+**Method sets kubeconfig which will be used in future in kubectl, it sets selected kubeconfig to env variable.**
+>NOTE: This command restarts all parent process to refresh env variables (Windows only).
 ```
-Method sets kubeconfig which will be used in future in kubectl, it sets selected kubeconfig to env variable.
-NOTE: This command restarts all parent process to refresh env variables (Windows only).
 Usage:
 1. With prompt to select available kubeconfigs.
 kubeconfig use
@@ -93,8 +93,8 @@ kubeconfig use --kubeconfig /path/to/kubeconfig
 
 ### validate
 
+**Method validates kubeconfig.**
 ```
-Method validates kubeconfig.
 Usage:
 kubeconfig validate --kubeconfig /path/to/kubeconfig
 ```

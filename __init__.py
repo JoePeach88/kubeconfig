@@ -3,7 +3,7 @@ import os
 import glob
 import yaml
 from pathlib import Path
-from helpers import print_message, print_choices, ERROR, SUCCESS
+from helpers import print_message, print_choices, render_code, ERROR, SUCCESS
 from helpers.kubeconfig.utils import set_env_variable
 
 
@@ -11,7 +11,7 @@ from helpers.kubeconfig.utils import set_env_variable
 __module_disabled_methods__ = []
 __module_name__ = 'KubeConfigHelper'
 __module_author__ = 'JoePeach88'
-__module_version__ = '1.1.1'
+__module_version__ = '1.2.0'
 __module_link__ = 'https://github.com/JoePeach88/kubeconfig'
 __module_category__ = ['development', 'devops', 'k8s']
 __module_compatibility__ = ['all']
@@ -28,23 +28,10 @@ __methods_static_aliases__ = {
 
 
 class kubeconfigHelper:
-    """
-    Module to work with kubeconfigs.
-    """
     def __init__(self, settings: dict):
         self.settings = settings.get('kubeconfig')
 
     def store(self, kubeconfig: str, dest: str = None, use: bool = False):
-        """
-        Method stores kubeconfig to specified location `dest` or to default kubeconfigs location from config file.
-        Usage:
-            1. Without specified location (to default kubeconfigs location):
-                kubeconfig store --kubeconfig /path/to/kubeconfig
-            2. With specified location
-                kubeconfig store --kubeconfig /path/to/kubeconfig --dest /path/to/save/kubeconfig
-            3. Store and use stored kubeconfig.
-                kubeconfig store --kubeconfig /path/to/kubeconfig --use
-        """
         try:
             dest_path = Path(self.settings.get('kubeconfigs_locations', ''))
             if not dest_path:
@@ -52,22 +39,17 @@ class kubeconfigHelper:
             dest_path = Path(dest) if dest else dest_path
             dest_path = Path(dest_path / Path(kubeconfig).name)
             shutil.copy2(kubeconfig, dest_path)
-            print_message(f"kubeconfig '{kubeconfig}' copied to '{dest_path}' successfully.", SUCCESS)
             if use:
                 self.use(str(dest_path))
+            return f"kubeconfig '{kubeconfig}' copied to '{dest_path}' successfully."
         except FileNotFoundError:
-            print_message(f"The source file '{kubeconfig}' was not found.", ERROR)
+            return f"The source file '{kubeconfig}' was not found."
         except PermissionError:
             print_message(f"Permission denied. Cannot copy file to '{dest_path}'.", ERROR)
         except Exception as e:
             print_message(f"An unexpected error occurred: {e}", ERROR)
 
     def ls(self, pretty: bool = True, location: str = 'all'):
-        """
-        Method displays all available kubeconfigs from all known kubeconfigs locations.
-        Usage:
-            kubeconfig ls
-        """
         kubeconfig_list = []
         locations = location.split(',')
         if 'env' in locations or 'all' in locations:
@@ -107,15 +89,6 @@ class kubeconfigHelper:
         return f'Available kubeconfigs ({len(kubeconfig_list)}):\n' + '\n'.join(kubeconfig_list) if pretty else kubeconfig_list
 
     def use(self, kubeconfig: str = None):
-        """
-        Method sets kubeconfig which will be used in future in kubectl, it sets selected kubeconfig to env variable.
-        NOTE: This command restarts all parent process to refresh env variables (Windows only).
-        Usage:
-            1. With prompt to select available kubeconfigs.
-                kubeconfig use
-            2. With specified kubeconfig.
-                kubeconfig use --kubeconfig /path/to/kubeconfig
-        """
         if not kubeconfig:
             kubeconfig_list = self.ls(pretty=False)
             kubeconfig = print_choices(kubeconfig_list, exit_btn=True)
@@ -128,21 +101,26 @@ class kubeconfigHelper:
             for kubeconfig in kubeconfigs:
                 if not kubeconfig:
                     kubeconfigs.remove(kubeconfig)
-            set_env_variable('KUBECONFIG', separator.join(kubeconfigs))
-            print_message(f"KUBECONFIG variable successfully set to '{separator.join(kubeconfigs)}'", SUCCESS)
+            if self.settings.get('store_method', 'main_config'):
+                main_config = None
+                with open(Path.home() / '.kube/config', 'r', encoding='utf-8') as main_config_stream:
+                    main_config = yaml.safe_load(main_config_stream)
+                with open(kubeconfig, 'r', encoding='utf-8') as kubeconfig_stream:
+                    kubeconfig_data = yaml.safe_load(kubeconfig_stream)
+                    contexts = kubeconfig_data['contexts']
+                    users = kubeconfig_data['users']
+                    if contexts not in main_config['contexts']:
+                        main_config['contexts'].extend(contexts)
+                    if users not in main_config['users']:
+                        main_config['users'].extend(users)
+                with open(Path.home() / '.kube/config', 'w', encoding='utf-8') as main_config_stream:
+                    main_config_stream.write(yaml.dump(main_config))
+                print_message(f"config file updated.", SUCCESS)
+            else:
+                set_env_variable('KUBECONFIG', separator.join(kubeconfigs))
+                print_message(f"KUBECONFIG variable successfully set to '{separator.join(kubeconfigs)}'", SUCCESS)
 
     def rm(self, kubeconfig: str = None, location: str = 'env', force: str = False):
-        """
-        Method removes kubeconfig from env variable KUBECONFIG.
-        NOTE: This command restarts all parent process to refresh env variables (Windows only).
-        Usage:
-            1. With prompt to select available kubeconfigs.
-                kubeconfig rm
-            2. With specified kubeconfig.
-                kubeconfig rm --kubeconfig /path/to/kubeconfig
-            3. Remove kubeconfig file.
-                kubeconfig rm --force
-        """
         if not kubeconfig:
             kubeconfig_list = self.ls(pretty=False, location=location)
             kubeconfig = print_choices(kubeconfig_list, exit_btn=True)
@@ -164,11 +142,6 @@ class kubeconfigHelper:
                 print_message(f"kubeconfig '{kubeconfig}' not found in KUBECONFIG variable.", force=True)
 
     def validate(self, kubeconfig: str = None, location: str = 'env', return_value: bool = False):
-        """
-        Method validates kubeconfig.
-        Usage:
-            kubeconfig validate --kubeconfig /path/to/kubeconfig
-        """
         if not kubeconfig:
             kubeconfig_list = self.ls(pretty=False, location=location)
             kubeconfig = print_choices(kubeconfig_list, exit_btn=True)
@@ -183,16 +156,6 @@ class kubeconfigHelper:
                 return f"kubeconfig '{kubeconfig}' is invalid."
 
     def show(self, *args, kubeconfig: str = None):
-        """
-        Method displays kubeconfig content.
-        Usage:
-            1. With prompt to select available kubeconfigs.
-                kubeconfig show
-            2. With specified kubeconfig.
-                kubeconfig show --kubeconfig /path/to/kubeconfig
-            3. With specified kubeconfig and data to return.
-                kubeconfig show --kubeconfig /path/to/kubeconfig clusters users
-        """
         if not kubeconfig and not args:
             kubeconfig_list = self.ls(pretty=False)
             kubeconfig = print_choices(kubeconfig_list, exit_btn=True)
@@ -202,7 +165,7 @@ class kubeconfigHelper:
             args.pop(0)
             args = tuple(args)
         if kubeconfig:
-            kubeconfig_data = self.validate(kubeconfig, return_value=True)
+            kubeconfig_data = render_code(self.validate(kubeconfig, return_value=True), 'yaml')
             if not args:
                 return kubeconfig_data
             else:
@@ -212,4 +175,4 @@ class kubeconfigHelper:
                     if kubeconfig_data.get(arg):
                         kubeconfig_return_data.update({arg: kubeconfig_data.get(arg)})
                 if kubeconfig_return_data:
-                    return yaml.dump(kubeconfig_return_data)
+                    return render_code(yaml.dump(kubeconfig_return_data), 'yaml')
